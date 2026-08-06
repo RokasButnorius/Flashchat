@@ -1,4 +1,39 @@
-*.db
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*.class
+
+# Android / Buildozer Cache & Binaries
 .buildozer/
 client-mobile/.buildozer/
-__pycache__/
+bin/
+*.apk
+*.aab
+
+# Databases & Local Logs
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Environment & Secrets
+.env
+.env.*
+*.key
+*.pem
+*.crt
+
+# Embedded Submodules & Heavy Folders
+client-desktop/pyside-setup/
+
+# IDE & OS Junk
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
