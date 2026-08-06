@@ -1,0 +1,4 @@
+*.db
+.buildozer/
+client-mobile/.buildozer/
+__pycache__/
