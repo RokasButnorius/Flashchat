@@ -6,26 +6,30 @@ Desktop and mobile clients talk to a dumb relay: the server never sees message p
 
 > **Status:** early / experimental. Protocol and APIs will change. Not audited — use at your own risk.
 
+## Downloads
+
+All builds (desktop + Android) are on the website: **[flashchat.store](https://flashchat.store)**
+
+The debug APK under `client-mobile/bin/` is only a convenience copy for people browsing the source.
+
 ## Features
 
-- **E2EE messaging** — X3DH-style setup + Double Ratchet (PyNaCl / libsodium)
-- **Voice & video calls** (desktop) — WebRTC via aiortc (DTLS-SRTP)
-- **Encrypted local vault** — private keys stay on device, protected by passphrase
-- **Anonymous mode** — temporary identity, nothing saved to disk
-- **Contacts, groups, presence** — social graph is on the relay (same tradeoff as other chat apps)
+- **E2EE messaging** — X3DH-style session setup + Double Ratchet (PyNaCl / libsodium)
+- **Voice & video calls** (desktop) — WebRTC via aiortc (DTLS-SRTP encrypted media)
+- **Encrypted local vault** — private keys stay on your device, protected by a passphrase
+- **Anonymous mode** — temporary identity, nothing written to disk
+- **Contacts, groups, presence** — social graph lives on the relay (same tradeoff as other chat apps)
 
 ## Clients
 
 | Client | Stack | Messaging | Calling |
 |--------|--------|-----------|---------|
-| **Desktop** | PySide6 | ✅ | ✅ |
-| **Mobile** | Kivy (Android) | ✅ | Not yet |
-
-Debug Android APK: `client-mobile/bin/` (sideload to try without building).
+| **Desktop** | PySide6 + qasync | ✅ | ✅ |
+| **Mobile** | Kivy (Android via Buildozer) | ✅ | Not yet |
 
 Clients connect by default to **`wss://relay.flashchat.store`**.
 
-## Quick start
+## Quick start (from source)
 
 ### Desktop
 
@@ -35,33 +39,34 @@ python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python main.py
-Mobile
-Install the APK from client-mobile/bin/, or build:
+Mobile (Android)
+Prefer the APK from the website. To build yourself:
 Bashcd client-mobile
 buildozer -v android debug
+Or sideload the debug APK in client-mobile/bin/.
 How it works
 textYou  ── encrypted message ──►  Relay  ── encrypted message ──►  Peer
          (server can't read)              (server can't read)
 
-Clients hold keys and do all encryption/decryption.
-Relay only stores public prekeys, queues opaque ciphertext, and handles contacts/groups/presence.
+Clients hold the private keys and perform all encryption / decryption.
+Relay only stores public prekey bundles, queues opaque ciphertext, and handles contacts, groups, and presence.
 Private keys never leave your device.
 
 Run your own relay (optional)
 If you prefer not to use the public relay:
 Bashcd server
 pip install websockets
-python server.py    # 0.0.0.0:8765
-Put TLS in front (e.g. Cloudflare Tunnel), then point the client RELAY_URL in session.py at your server.
+python server.py    # listens on 0.0.0.0:8765
+Put TLS in front (for example a Cloudflare Tunnel), then point the client RELAY_URL in session.py at your server.
 Security notes
 
-Message content is E2EE; the relay cannot read it.
-The relay can see the social graph (who talks to whom, contacts, groups, online status).
-No real account auth yet — anyone can pick a user ID. Fine for testing; not production-hardened.
-This is hobby/research code. Review it yourself before trusting it with anything sensitive.
+Message content is end-to-end encrypted; the relay cannot read it.
+The relay can see the social graph (who you contact, groups, online status).
+There is no real account authentication yet — anyone can pick a user ID. Fine for early testing; not production-hardened.
+This is hobby / research software. Review the code yourself before trusting it with anything sensitive.
 
-Layout
-textclient-desktop/   PySide6 client + calling
+Project layout
+textclient-desktop/   PySide6 desktop client + calling
 client-mobile/    Kivy Android client
-server/           Relay + SQLite
-shared/           Wire protocol (no crypto)
+server/           Dumb relay + SQLite social graph
+shared/           Wire protocol definitions (no crypto)
