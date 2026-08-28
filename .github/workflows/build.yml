@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: windows-latest
     permissions:
-      contents: write # Grants GitHub Actions permission to publish releases
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -34,6 +34,7 @@ jobs:
             --windowed `
             --name="FlashChat" `
             --icon="client-desktop/logo.ico" `
+            --collect-all "qasync" `
             --collect-all "aiortc" `
             --collect-all "av" `
             --collect-all "PySide6" `
