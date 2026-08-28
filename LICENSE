@@ -1,0 +1,18 @@
+FlashChat Source-Available & Personal Use License
+Copyright (c) 2026 Rokas Butnorius. All rights reserved.
+
+1. PERMITTED USES
+Subject to the terms of this license, you are permitted to:
+  - Download, view, and inspect the source code for security, testing, and educational purposes.
+  - Modify (mod) and compile the source code locally for your own personal, non-commercial testing.
+
+2. RESTRICTIONS & PROHIBITED USES
+You are strictly PROHIBITED from doing any of the following without explicit written permission from Rokas Butnorius:
+  - Re-releasing, distributing, or publishing modified or unmodified versions of this software or its source code (whether for free or for money).
+  - Rebranding, renaming, or creating derivative software based on this code.
+  - Selling, monetizing, sublicensing, or renting the software or any portion of its code.
+  - Reverse engineering, hacking, or attempting to exploit the server/network protocol.
+  - Running custom, third-party, or self-hosted servers to operate this client software outside the official infrastructure.
+
+3. DISCLAIMER OF WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE USE OF THIS SOFTWARE.
