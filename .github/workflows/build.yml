@@ -31,18 +31,6 @@ jobs:
           if (Test-Path "FlashChat.exe.spec") { Remove-Item "FlashChat.exe.spec" }
           pyinstaller --noconsole --onefile --add-data "crypto;crypto" --add-data "network;network" --name "FlashChat.exe" main_desktop.py
 
-      - name: Self-Sign Executable
-        shell: powershell
-        run: |
-          # 1. Locate signtool.exe in Windows SDK
-          $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Filter "signtool.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
-          
-          # 2. Create self-signed cert
-          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Rokas Butnorius Software" -CertStoreLocation Cert:\CurrentUser\My
-          
-          # 3. Sign the binary using located signtool
-          & $signtool sign /fd SHA256 /sha1 $cert.Thumbprint "client-desktop/dist/FlashChat.exe"
-
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v1
         with:
