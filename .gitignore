@@ -12,9 +12,17 @@ __pycache__/
 # Android / Buildozer Cache & Binaries
 .buildozer/
 client-mobile/.buildozer/
+apks/
 bin/
 *.apk
 *.aab
+
+# Archives & Extra Local Backups
+*.rar
+*.zip
+*.7z
+*.tar.gz
+Server (*)/
 
 # Databases & Local Logs
 *.db
