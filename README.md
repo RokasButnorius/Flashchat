@@ -1,5 +1,5 @@
 # FlashChat
-
+Project Started 2026-06-*, Published 2026-08-07
 End-to-end encrypted messaging and calling in Python.
 
 Desktop and mobile clients talk to a dumb relay: the server never sees message plaintext or private keys. A public relay is available for normal use; you can also run your own if you want.
