@@ -1,5 +1,5 @@
 """
-client-desktop/session.py
+client-mobile/session.py
 
 Backend session logic for the desktop GUI. Reuses the exact same
 X3DH + Double Ratchet crypto engine that was tested end-to-end in the
@@ -15,6 +15,7 @@ from pathlib import Path
 from nacl.public import PrivateKey
 
 from crypto import keygen, sodium_wrapper as sw
+from crypto import vault
 from crypto.vault import Vault, VaultError
 from crypto.ratchet import (
     RatchetState, x3dh_initiate, x3dh_respond,
@@ -22,21 +23,14 @@ from crypto.ratchet import (
     encrypt_message, decrypt_message,
 )
 from network.ws_client import RelayClient
+from crypto.session_persist import SessionStore
 
 import os
 
-# On Android, Path.home() does NOT resolve to a writable location --
-# the app is sandboxed and can only write inside its own private
-# storage folder. python-for-android sets the ANDROID_PRIVATE
-# environment variable to that app-private, always-writable directory
-# on every single build (more reliable than importing android.storage,
-# which can silently fail to import depending on the p4a build/API
-# version -- that's what happened here: the import failed, fell back
-# to Path.home(), and reproduced the exact same PermissionError).
 if "ANDROID_PRIVATE" in os.environ:
-    DATA_DIR = Path(os.environ["ANDROID_PRIVATE"]) / ".privacy-messenger"
+    DATA_DIR = Path(os.environ["ANDROID_PRIVATE"]) / "privacy-messenger"
 else:
-    DATA_DIR = Path.home() / ".privacy-messenger"
+    DATA_DIR = Path.home() / ".privacy-messenger"  # lets this file also run via `python main.py` on desktop for fast local testing
 RELAY_URL = "wss://relay.flashchat.store"  # swap to "ws://localhost:8765" for local testing
 
 
@@ -76,6 +70,10 @@ class GuiSession:
         self.vault_path = DATA_DIR / f"{safe}_vault.json"
         self.device_id_path = DATA_DIR / f"{safe}_device_id.txt"
         self.vault = Vault(self.vault_path)
+        self.session_store = SessionStore(
+            DATA_DIR / f"{safe}_sessions.json",
+            DATA_DIR / f"{safe}_sessions_salt.bin",
+        )
         self.private_keys: dict | None = None
         self.relay: RelayClient | None = None
         self.sessions: dict[str, RatchetState] = {}
@@ -102,11 +100,42 @@ class GuiSession:
         bundle = keygen.bootstrap_new_device()
         if not self.is_anonymous:
             self.vault.create(passphrase, bundle["private_bundle"])
+            self.session_store.unlock(passphrase)
         self.private_keys = bundle["private_bundle"]
         return bundle["public_registration"]
 
-    def unlock_existing_identity(self, passphrase: str):
+    def unlock_existing_identity(self, passphrase: str, remember_me: bool = False):
         self.private_keys = self.vault.unlock(passphrase)
+        self.session_store.unlock(passphrase)
+        if remember_me:
+            self.vault.save_remember_me(passphrase, vault.current_platform())
+            self.session_store.save_remember_me(passphrase, vault.current_platform())
+
+    def has_remembered_login(self) -> bool:
+        return self.vault.has_remember_me()
+
+    def try_auto_login(self) -> bool:
+        """Call at startup before showing the login screen. Returns True
+        and populates self.private_keys if a hardware-keystore-backed
+        auto-unlock succeeds; False means show the passphrase screen as
+        normal (nothing was left in a half-logged-in state)."""
+        platform = vault.current_platform()
+        bundle = self.vault.try_auto_unlock(platform)
+        if bundle is None:
+            return False
+        self.private_keys = bundle
+        session_bundle = self.session_store.try_auto_unlock(platform)
+        if session_bundle is not None:
+            self.sessions.update(session_bundle)
+        return True
+
+    def logout(self):
+        """Wipes the remember-me blobs so the next launch requires the
+        passphrase again. Does NOT delete the vault/sessions themselves --
+        those still unlock normally with the passphrase."""
+        self.vault.clear_remember_me()
+        self.session_store.clear_remember_me()
+        self.private_keys = None
 
     def load_device_id(self):
         if self.device_id_path.exists() and not self.is_anonymous:
@@ -138,6 +167,7 @@ class GuiSession:
     # ---------- networking ----------
 
     async def connect(self):
+        self.sessions.update(self.session_store.load())
         self.relay = RelayClient(RELAY_URL, self.user_id)
 
         @self.relay.on("incoming_message")
@@ -259,6 +289,7 @@ class GuiSession:
         )
         state = init_ratchet_sender(root_key, sw.unb64(bundle["signed_prekey"]))
         self.sessions[peer_user_id] = state
+        self.session_store.save(self.sessions)
 
         return {
             "x3dh_ephemeral_pub": sw.b64(ephemeral_pub),
@@ -320,6 +351,7 @@ class GuiSession:
             "is_prekey_message": is_prekey_message,
         }
         await self.relay.send_envelope(envelope)
+        self.session_store.save(self.sessions)
 
     async def send_to_peer(self, peer_user_id: str, text: str):
         """High-level helper: bootstraps a session automatically if needed."""
@@ -350,6 +382,7 @@ class GuiSession:
 
         plaintext = decrypt_message(state, header_payload["ratchet_header"], ciphertext)
         await self.relay.ack(envelope["envelope_id"])
+        self.session_store.save(self.sessions)
         if self.on_message:
             self.on_message(peer_id, plaintext.decode("utf-8"), False)
 

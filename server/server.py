@@ -117,9 +117,13 @@ async def handler(ws: WebSocketServerProtocol):
                 continue
 
             if msg_type == "add_contact":
-                models.add_contact(user_id, msg["contact_id"])
-                profile = models.get_profile(msg["contact_id"])
-                online = bool(CONNECTED.get(msg["contact_id"]))
+                target_id = msg["contact_id"]
+                if models.get_profile(target_id) is None:
+                    await ws.send(json.dumps({"type": "error", "reason": "no_such_user"}))
+                    continue
+                models.add_contact(user_id, target_id)
+                profile = models.get_profile(target_id)
+                online = bool(CONNECTED.get(target_id))
                 await ws.send(json.dumps({"type": "contact_added", "contact": profile, "online": online}))
                 continue
 
