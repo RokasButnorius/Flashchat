@@ -1,4 +1,4 @@
-name: Build and Release FlashChat Desktop
+name: Build Desktop Release
 
 on:
   push:
@@ -6,36 +6,46 @@ on:
       - 'v*'
 
 jobs:
-  build-and-release:
+  build:
     runs-on: windows-latest
-    permissions:
-      contents: write
 
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: false # Fixes 'git exit code 128' warning
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller PySide6 -r client-desktop/requirements.txt # Installs PySide6 automatically
+          pip install pyinstaller
+          pip install -r client-desktop/requirements.txt
 
-      - name: Build EXE with PyInstaller
+      - name: Build Executable with PyInstaller
         run: |
-          cd client-desktop
-          if (Test-Path "FlashChat.exe.spec") { Remove-Item "FlashChat.exe.spec" } # Starts clean
-          pyinstaller --noconsole --onefile --icon="logo.ico" --hidden-import=PySide6 --add-data "crypto;crypto" --add-data "network;network" --add-data "logo.ico;." --name "FlashChat.exe" main_desktop.py
+          pyinstaller `
+            --noconfirm `
+            --onedir `
+            --windowed `
+            --name="FlashChat" `
+            --icon="client-desktop/logo.ico" `
+            --collect-all "aiortc" `
+            --collect-all "av" `
+            --collect-all "PySide6" `
+            --copy-metadata "aiortc" `
+            --copy-metadata "av" `
+            client-desktop/main_desktop.py
 
-      - name: Publish to GitHub Releases
+      - name: Compress Build Artifact
+        run: |
+          powershell Compress-Archive -Path dist/FlashChat/* -DestinationPath dist/FlashChat-Windows-x64.zip
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: client-desktop/dist/FlashChat.exe
+          files: dist/FlashChat-Windows-x64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
