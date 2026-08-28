@@ -227,9 +227,12 @@ class CallDialog(QDialog):
         asyncio.ensure_future(self.call_manager.start_call(self.peer_id, mic_device=mic, camera_device=cam, speaker_device=speaker))
 
     def _accept(self, offer_payload):
+        mic = self.mic_combo.currentData()
+        cam = self.camera_combo.currentData()
         speaker = self.speaker_combo.currentData()
         self.status_label.setText("Connecting...")
-        asyncio.ensure_future(self.call_manager.handle_offer(self.peer_id, offer_payload, speaker_device=speaker))
+        asyncio.ensure_future(self.call_manager.handle_offer(
+            self.peer_id, offer_payload, mic_device=mic, camera_device=cam, speaker_device=speaker))
 
     def _end(self):
         asyncio.ensure_future(self.call_manager.end_call())

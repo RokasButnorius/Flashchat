@@ -148,7 +148,7 @@ class AudioSink:
             print("[calling] WARNING: sounddevice not available -- cannot play received audio")
             return
         import queue as _queue
-        self._queue = _queue.Queue(maxsize=80)  # more jitter headroom than before, trades a little latency for fewer dropouts
+        self._queue = _queue.Queue(maxsize=40)  # ~800ms worst-case backlog, still gives dropout headroom without letting delay stack up
         self._task = asyncio.ensure_future(self._recv_loop())
 
     def _audio_callback(self, outdata, frames, time_info, status):
@@ -190,12 +190,27 @@ class AudioSink:
 
     async def _recv_loop(self):
         import queue as _queue
+        import time as _time
         priming_frames = []
         PRIME_COUNT = 3   # buffer a few frames before starting playback, avoids an underrun right at call start
+        frames_recvd = 0
+        _last_log = _time.monotonic()
         try:
             while True:
                 frame = await self.track.recv()
+                frames_recvd += 1
                 arr, channels = self._frame_to_array(frame)
+
+                # DIAGNOSTIC (temporary): logs once a second how deep the
+                # playback queue is. If qsize stays near maxsize, audio is
+                # arriving faster than it's being played -- points at the
+                # OS output stream/device. If qsize stays near 0 but audio
+                # is still delayed, the delay is happening BEFORE this
+                # point (network/jitter/sender side), not in our buffer.
+                now = _time.monotonic()
+                if now - _last_log > 1.0 and self._queue is not None:
+                    print(f"[calling] diag: recv'd {frames_recvd} frames, queue depth {self._queue.qsize()}/{self._queue.maxsize}")
+                    _last_log = now
 
                 if self._stream is None:
                     priming_frames.append(arr)
@@ -210,7 +225,13 @@ class AudioSink:
                         # resistance to underrun/choppiness -- worth it for
                         # voice quality. "low" was too aggressive and left
                         # no slack for any timing jitter.
-                        latency="high",
+                        # NOTE: "low" trades a little dropout resistance for
+                        # much less added delay. If you get choppy audio on
+                        # a slow/congested network, bump back to "high" --
+                        # but with Bluetooth output devices in particular,
+                        # "high" here stacks on top of the BT stack's own
+                        # buffering and can add seconds of delay.
+                        latency="low",
                     )
                     for pf in priming_frames:
                         try:
@@ -459,12 +480,53 @@ class CallManager:
             "sdp": self.pc.localDescription.sdp, "type": self.pc.localDescription.type,
         }))
 
-    async def handle_offer(self, from_user: str, payload: str, speaker_device: str = None):
+    async def handle_offer(self, from_user: str, payload: str, mic_device: str = None,
+                           camera_device: str = None, speaker_device: str = None):
+        """BUGFIX: this used to never call addTrack at all -- it only set up
+        the remote description and answered, so the answering side always
+        sent pure silence back. That's why calls "connected" but only the
+        caller could ever be heard. Mirrors start_call's device-resolution
+        logic so both sides of a call actually send media."""
         self.speaker_device = speaker_device
         self.pc = self._new_pc(from_user)
         data = json.loads(payload)
         offer = RTCSessionDescription(sdp=data["sdp"], type=data["type"])
         await self.pc.setRemoteDescription(offer)
+
+        # Only offer a camera back if the caller's offer actually negotiated
+        # video -- answering an audio-only offer with a video track can
+        # confuse SDP negotiation on some peers.
+        offer_has_video = "m=video" in offer.sdp
+        resolved_mic = mic_device or default_input_device_name()
+        resolved_camera = camera_device if offer_has_video else None
+
+        try:
+            if resolved_mic and resolved_camera:
+                source = f"video={resolved_camera}:audio={resolved_mic}"
+            elif resolved_camera:
+                source = f"video={resolved_camera}"
+            elif resolved_mic:
+                source = f"audio={resolved_mic}"
+            else:
+                source = None
+
+            self.player = MediaPlayer(source, format="dshow") if source else None
+            if self.player is None:
+                print("[calling] WARNING: no microphone or camera resolved -- "
+                      "this side will send no media. Check that a default "
+                      "input device exists and sounddevice is installed.")
+        except Exception as e:
+            self.player = None
+            self.last_media_error = f"{type(e).__name__}: {e}"
+            print(f"[calling] WARNING: failed to open media device ({resolved_mic or resolved_camera}): {self.last_media_error}")
+            print("[calling] Call will proceed as a connection-only/no-media session unless this is fixed.")
+
+        if self.pc is None:
+            return  # call was ended concurrently (e.g. dialog closed) before we got this far
+        if self.player and self.player.audio:
+            self.pc.addTrack(self._relay.subscribe(self.player.audio))
+        if self.player and self.player.video:
+            self.pc.addTrack(self._relay.subscribe(self.player.video))
 
         answer = await self.pc.createAnswer()
         if self.pc is None:
