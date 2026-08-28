@@ -1,4 +1,3 @@
-# UTF-8
 VSVersionInfo(
   ffi=FixedFileInfo(
     filevers=(0, 1, 0, 0),
@@ -14,21 +13,21 @@ VSVersionInfo(
     StringFileInfo(
       [
         StringTable(
-          u'040904B0',
+          '040904B0',
           [
-            StringStruct(u'CompanyName', u'Rokas Butnorius Software'),
-            StringStruct(u'FileDescription', u'E2EE Messaging & Calling For Free And Opensource'),
-            StringStruct(u'FileVersion', u'0.1.0.0'),
-            StringStruct(u'InternalName', u'FlashChat'),
-            StringStruct(u'LegalCopyright', u'© 2026 Rokas Butnorius. All rights reserved.'),
-            StringStruct(u'OriginalFilename', u'FlashChat.exe'),
-            StringStruct(u'ProductName', u'FlashChat'),
-            StringStruct(u'ProductVersion', u'0.1.0.0'),
-            StringStruct(u'Author', u'Rokas Butnorius')
+            StringStruct('CompanyName', 'Rokas Butnorius Software'),
+            StringStruct('FileDescription', 'E2EE Messaging & Calling For Free And Opensource'),
+            StringStruct('FileVersion', '0.1.0.0'),
+            StringStruct('InternalName', 'FlashChat'),
+            StringStruct('LegalCopyright', 'Copyright (c) 2026 Rokas Butnorius'),
+            StringStruct('OriginalFilename', 'FlashChat.exe'),
+            StringStruct('ProductName', 'FlashChat'),
+            StringStruct('ProductVersion', '0.1.0.0'),
+            StringStruct('Author', 'Rokas Butnorius')
           ]
         )
       ]
     ),
-    VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
   ]
 )
