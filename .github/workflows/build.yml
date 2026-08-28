@@ -1,0 +1,44 @@
+name: Build and Release FlashChat Desktop
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers whenever you push a version tag like v0.1
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller -r client-desktop/requirements.txt
+
+      - name: Build EXE with PyInstaller
+        run: |
+          cd client-desktop
+          pyinstaller --noconsole --onefile --icon=logo.ico --version-file=version.txt --add-data "crypto;crypto" --add-data "network;network" --name "FlashChat.exe" main_desktop.py
+
+      - name: Self-Sign Executable
+        shell: powershell
+        run: |
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Rokas Butnorius Software" -CertStoreLocation Cert:\CurrentUser\My
+          signtool sign /fd SHA256 /sha1 $cert.Thumbprint "client-desktop/dist/FlashChat.exe"
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v1
+        with:
+          files: client-desktop/dist/FlashChat.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
