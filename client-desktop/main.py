@@ -132,6 +132,11 @@ class CallDialog(QDialog):
         if mics:
             for d in mics:
                 self.mic_combo.addItem(d["name"], d["name"])
+            default_mic = calling.default_input_device_name()
+            if default_mic:
+                idx = self.mic_combo.findData(default_mic)
+                if idx >= 0:
+                    self.mic_combo.setCurrentIndex(idx)
         else:
             self.mic_combo.addItem("No microphones detected", None)
         form.addWidget(self.mic_combo, 0, 1)
@@ -142,6 +147,11 @@ class CallDialog(QDialog):
         if speakers:
             for d in speakers:
                 self.speaker_combo.addItem(d["name"], d["name"])
+            default_speaker = calling.default_output_device_name()
+            if default_speaker:
+                idx = self.speaker_combo.findData(default_speaker)
+                if idx >= 0:
+                    self.speaker_combo.setCurrentIndex(idx)
         else:
             self.speaker_combo.addItem("No speakers detected", None)
         form.addWidget(self.speaker_combo, 1, 1)
@@ -227,9 +237,24 @@ class CallDialog(QDialog):
         asyncio.ensure_future(self.call_manager.start_call(self.peer_id, mic_device=mic, camera_device=cam, speaker_device=speaker))
 
     def _accept(self, offer_payload):
+        mic = self.mic_combo.currentData()
+        cam = self.camera_combo.currentData()
         speaker = self.speaker_combo.currentData()
         self.status_label.setText("Connecting...")
-        asyncio.ensure_future(self.call_manager.handle_offer(self.peer_id, offer_payload, speaker_device=speaker))
+
+        async def _do_accept():
+            try:
+                await self.call_manager.handle_offer(
+                    self.peer_id, offer_payload, mic_device=mic, camera_device=cam, speaker_device=speaker)
+            except calling.CallSecurityError as e:
+                print(f"[calling] {e}")
+                self.status_label.setText("⚠ Call rejected: could not verify caller's identity.")
+                QMessageBox.critical(self, "Call security warning",
+                    "This call's encryption could not be verified against the caller's known identity key. "
+                    "It was refused because it may indicate the relay server is tampering with the call "
+                    "(a MITM attempt), not just a network glitch.")
+
+        asyncio.ensure_future(_do_accept())
 
     def _end(self):
         asyncio.ensure_future(self.call_manager.end_call())
@@ -709,7 +734,18 @@ class MainWindow(QMainWindow):
             return
 
         if kind == "answer":
-            asyncio.ensure_future(target_dlg.call_manager.handle_answer(payload))
+            async def _do_answer():
+                try:
+                    await target_dlg.call_manager.handle_answer(payload, from_user=from_user)
+                except calling.CallSecurityError as e:
+                    print(f"[calling] {e}")
+                    target_dlg.status_label.setText("⚠ Call ended: could not verify recipient's identity.")
+                    QMessageBox.critical(target_dlg, "Call security warning",
+                        "This call's encryption could not be verified against the recipient's known identity key. "
+                        "It was ended because it may indicate the relay server is tampering with the call "
+                        "(a MITM attempt), not just a network glitch.")
+                    asyncio.ensure_future(target_dlg.call_manager.end_call())
+            asyncio.ensure_future(_do_answer())
         elif kind == "ice":
             asyncio.ensure_future(target_dlg.call_manager.handle_ice(payload))
 
